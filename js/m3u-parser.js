@@ -2,9 +2,11 @@
 let channels = [];
 let filteredChannels = [];
 let hideOffline = false;
+let myPlaylist = []; // User's custom playlist
 
 document.addEventListener('DOMContentLoaded', () => {
     setupM3UParser();
+    loadPlaylistFromStorage();
 });
 
 function setupM3UParser() {
@@ -643,6 +645,9 @@ function createChannelCard(channel, index) {
             <button class="channel-btn play" onclick="playChannel(${index})">
                 <i class="fas fa-play"></i> تشغيل
             </button>
+            <button class="channel-btn add-to-playlist" onclick="addToPlaylist(${index})" title="إضافة لقائمة التشغيل">
+                <i class="fas fa-plus"></i> إضافة
+            </button>
             <button class="channel-btn vlc" onclick="openInVLC(${index})" title="فتح في VLC">
                 <i class="fas fa-external-link-alt"></i> VLC
             </button>
@@ -785,6 +790,20 @@ function setupFilterButtons() {
     const exportBtn = document.getElementById('export-btn');
     if (exportBtn) {
         exportBtn.addEventListener('click', showExportOptions);
+    }
+    
+    // View playlist button
+    const viewPlaylistBtn = document.getElementById('view-playlist-btn');
+    if (viewPlaylistBtn) {
+        viewPlaylistBtn.addEventListener('click', openPlaylistModal);
+    }
+    
+    // Close playlist modal
+    const closePlaylistModal = document.getElementById('close-playlist-modal');
+    if (closePlaylistModal) {
+        closePlaylistModal.addEventListener('click', () => {
+            document.getElementById('playlist-modal').classList.remove('active');
+        });
     }
 }
 
@@ -1123,3 +1142,273 @@ function detectM3UFormat(content) {
     
     return 'unknown';
 }
+
+// ==================== Playlist Management ====================
+
+// Load playlist from localStorage
+function loadPlaylistFromStorage() {
+    try {
+        const saved = localStorage.getItem('myPlaylist');
+        if (saved) {
+            myPlaylist = JSON.parse(saved);
+            updatePlaylistCount();
+            console.log(`✅ تم تحميل ${myPlaylist.length} قناة من قائمة التشغيل`);
+        }
+    } catch (e) {
+        console.error('خطأ في تحميل قائمة التشغيل:', e);
+        myPlaylist = [];
+    }
+}
+
+// Save playlist to localStorage
+function savePlaylistToStorage() {
+    try {
+        localStorage.setItem('myPlaylist', JSON.stringify(myPlaylist));
+    } catch (e) {
+        console.error('خطأ في حفظ قائمة التشغيل:', e);
+    }
+}
+
+// Update playlist count display
+function updatePlaylistCount() {
+    const countEl = document.getElementById('playlist-count');
+    if (countEl) {
+        countEl.textContent = myPlaylist.length;
+    }
+}
+
+// Add channel to playlist
+function addToPlaylist(index) {
+    const channel = filteredChannels[index];
+    
+    // Check if already in playlist
+    const exists = myPlaylist.some(ch => ch.url === channel.url);
+    
+    if (exists) {
+        app.showToast('❗ هذه القناة موجودة في قائمتك بالفعل', 'warning');
+        return;
+    }
+    
+    // Add to playlist
+    myPlaylist.push({
+        name: channel.name,
+        url: channel.url,
+        logo: channel.logo,
+        group: channel.group,
+        tvgId: channel.tvgId,
+        tvgName: channel.tvgName,
+        language: channel.language,
+        country: channel.country,
+        addedAt: new Date().toISOString()
+    });
+    
+    savePlaylistToStorage();
+    updatePlaylistCount();
+    
+    app.showToast(`✅ تمت إضافة "${channel.name}" لقائمتك`, 'success');
+}
+
+// Remove channel from playlist
+function removeFromPlaylist(index) {
+    const channel = myPlaylist[index];
+    myPlaylist.splice(index, 1);
+    
+    savePlaylistToStorage();
+    updatePlaylistCount();
+    displayMyPlaylist();
+    
+    app.showToast(`❌ تم حذف "${channel.name}"`, 'info');
+}
+
+// Clear entire playlist
+function clearPlaylist() {
+    if (myPlaylist.length === 0) {
+        app.showToast('قائمة التشغيل فارغة بالفعل', 'info');
+        return;
+    }
+    
+    const confirmed = confirm(`❓ هل أنت متأكد من حذف جميع القنوات (${myPlaylist.length} قناة)؟`);
+    
+    if (confirmed) {
+        myPlaylist = [];
+        savePlaylistToStorage();
+        updatePlaylistCount();
+        displayMyPlaylist();
+        app.showToast('✅ تم مسح قائمة التشغيل', 'success');
+    }
+}
+
+// Open playlist modal
+function openPlaylistModal() {
+    displayMyPlaylist();
+    document.getElementById('playlist-modal').classList.add('active');
+}
+
+// Display my playlist
+function displayMyPlaylist() {
+    const grid = document.getElementById('my-playlist-grid');
+    const totalEl = document.getElementById('my-playlist-total');
+    
+    if (totalEl) {
+        totalEl.textContent = myPlaylist.length;
+    }
+    
+    if (myPlaylist.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state" style="text-align: center; padding: 40px; color: #999;">
+                <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 15px;"></i>
+                <p>لا توجد قنوات في قائمتك</p>
+                <p style="font-size: 0.9rem;">اضغط على "إضافة" في أي قناة لإضافتها</p>
+            </div>
+        `;
+        return;
+    }
+    
+    grid.innerHTML = '';
+    
+    myPlaylist.forEach((channel, index) => {
+        const card = document.createElement('div');
+        card.className = 'channel-card';
+        
+        card.innerHTML = `
+            <div class="channel-status online"></div>
+            
+            <div class="channel-header">
+                ${channel.logo ? 
+                    `<img src="${channel.logo}" alt="${channel.name}" class="channel-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                     <div class="channel-logo placeholder" style="display: none;">
+                        <i class="fas fa-tv"></i>
+                     </div>` : 
+                    `<div class="channel-logo placeholder">
+                        <i class="fas fa-tv"></i>
+                     </div>`
+                }
+                <div class="channel-details">
+                    <div class="channel-name">${channel.name}</div>
+                    ${channel.group ? `<span class="channel-category">${channel.group}</span>` : ''}
+                </div>
+            </div>
+            
+            <div class="channel-url-text">${channel.url}</div>
+            
+            <div class="channel-actions">
+                <button class="channel-btn play" onclick="playChannelFromPlaylist(${index})">
+                    <i class="fas fa-play"></i> تشغيل
+                </button>
+                <button class="channel-btn vlc" onclick="openPlaylistChannelInVLC(${index})" title="فتح في VLC">
+                    <i class="fas fa-external-link-alt"></i> VLC
+                </button>
+                <button class="channel-btn copy" onclick="app.copyToClipboard('${channel.url}')">
+                    <i class="fas fa-copy"></i> نسخ
+                </button>
+                <button class="channel-btn" onclick="removeFromPlaylist(${index})" style="background: #f56565; color: white;">
+                    <i class="fas fa-trash"></i> حذف
+                </button>
+            </div>
+        `;
+        
+        grid.appendChild(card);
+    });
+}
+
+// Play channel from playlist
+function playChannelFromPlaylist(index) {
+    const channel = myPlaylist[index];
+    
+    // Check if IPTV link
+    if (isIPTVLink(channel.url)) {
+        const userChoice = confirm(
+            `⚠️ هذا رابط IPTV قد لا يعمل في المتصفح.\n\n` +
+            `👉 الحل الموصى به:\n` +
+            `1. اضغط زر "VLC" لتحميل ملف القناة\n` +
+            `2. افتح الملف بـ VLC Media Player\n\n` +
+            `هل تريد المحاولة في المتصفح على أي حال؟`
+        );
+        
+        if (!userChoice) {
+            return;
+        }
+    }
+    
+    player.openVideoModal({
+        name: channel.name,
+        url: channel.url,
+        category: channel.group
+    });
+}
+
+// Open playlist channel in VLC
+function openPlaylistChannelInVLC(index) {
+    const channel = myPlaylist[index];
+    
+    // Create M3U content
+    let m3uContent = '#EXTM3U\n\n';
+    m3uContent += `#EXTINF:-1`;
+    
+    if (channel.tvgId) m3uContent += ` tvg-id="${channel.tvgId}"`;
+    if (channel.logo) m3uContent += ` tvg-logo="${channel.logo}"`;
+    if (channel.group) m3uContent += ` group-title="${channel.group}"`;
+    
+    m3uContent += `,${channel.name}\n`;
+    m3uContent += `${channel.url}\n`;
+    
+    // Download
+    const blob = new Blob([m3uContent], { type: 'audio/x-mpegurl' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${channel.name.replace(/[^a-z0-9]/gi, '_')}.m3u`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    app.showToast(`🎬 تم تحميل ${channel.name}.m3u - افتحه بـ VLC`, 'success', 4000);
+    app.copyToClipboard(channel.url);
+}
+
+// Export my playlist as M3U
+function exportMyPlaylist() {
+    if (myPlaylist.length === 0) {
+        app.showToast('قائمة التشغيل فارغة', 'warning');
+        return;
+    }
+    
+    let m3uContent = '#EXTM3U\n\n';
+    
+    myPlaylist.forEach(channel => {
+        m3uContent += `#EXTINF:-1`;
+        
+        if (channel.tvgId) m3uContent += ` tvg-id="${channel.tvgId}"`;
+        if (channel.logo) m3uContent += ` tvg-logo="${channel.logo}"`;
+        if (channel.group) m3uContent += ` group-title="${channel.group}"`;
+        if (channel.tvgName) m3uContent += ` tvg-name="${channel.tvgName}"`;
+        if (channel.language) m3uContent += ` tvg-language="${channel.language}"`;
+        if (channel.country) m3uContent += ` tvg-country="${channel.country}"`;
+        
+        m3uContent += `,${channel.name}\n`;
+        m3uContent += `${channel.url}\n\n`;
+    });
+    
+    // Download
+    const blob = new Blob([m3uContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `my_playlist_${Date.now()}.m3u`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    app.showToast(`✅ تم تصدير ${myPlaylist.length} قناة بتنسيق M3U`, 'success');
+}
+
+// Make functions globally accessible
+window.addToPlaylist = addToPlaylist;
+window.removeFromPlaylist = removeFromPlaylist;
+window.clearPlaylist = clearPlaylist;
+window.openPlaylistModal = openPlaylistModal;
+window.exportMyPlaylist = exportMyPlaylist;
+window.playChannelFromPlaylist = playChannelFromPlaylist;
+window.openPlaylistChannelInVLC = openPlaylistChannelInVLC;

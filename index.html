@@ -172,6 +172,9 @@
                             <button class="filter-btn" id="show-all-btn">
                                 <i class="fas fa-eye"></i> عرض الكل
                             </button>
+                            <button class="filter-btn" id="view-playlist-btn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                <i class="fas fa-list-ul"></i> قائمتي (<span id="playlist-count">0</span>)
+                            </button>
                             <button class="filter-btn" id="export-btn">
                                 <i class="fas fa-file-export"></i> تصدير M3U
                             </button>
@@ -261,6 +264,48 @@
                            width="100%"
                            height="500">
                     </video>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlist Modal -->
+    <div class="modal" id="playlist-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-list-ul"></i> 
+                    <span>قائمة التشغيل المخصصة</span>
+                </h3>
+                <button class="close-btn" id="close-playlist-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="playlist-info" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 style="margin: 0 0 5px 0;">🎵 قنواتي المفضلة</h4>
+                            <p style="margin: 0; opacity: 0.9; font-size: 0.9rem;">إجمالي: <strong id="my-playlist-total">0</strong> قناة</p>
+                        </div>
+                        <div>
+                            <button onclick="exportMyPlaylist()" style="background: white; color: #f5576c; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">
+                                <i class="fas fa-download"></i> تصدير M3U
+                            </button>
+                            <button onclick="clearPlaylist()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                                <i class="fas fa-trash"></i> مسح الكل
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="my-playlist-grid" class="channels-grid">
+                    <div class="empty-state" style="text-align: center; padding: 40px; color: #999;">
+                        <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 15px;"></i>
+                        <p>لا توجد قنوات في قائمتك</p>
+                        <p style="font-size: 0.9rem;">اضغط على "إضافة" في أي قناة لإضافتها</p>
+                    </div>
                 </div>
             </div>
         </div>
