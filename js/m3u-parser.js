@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupM3UParser() {
     const parseBtn = document.getElementById('parse-m3u-btn');
+    const downloadBtn = document.getElementById('download-m3u-btn');
     const m3uUrlInput = document.getElementById('m3u-url');
     const fileInput = document.getElementById('m3u-file-input');
     const fileNameDisplay = document.getElementById('file-name-display');
@@ -20,6 +21,18 @@ function setupM3UParser() {
                 parseM3U(url);
             } else {
                 app.showToast('الرجاء إدخال رابط M3U أو رفع ملف', 'warning');
+            }
+        });
+    }
+    
+    // Download M3U button
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+            const url = m3uUrlInput.value.trim();
+            if (url) {
+                downloadM3UFile(url);
+            } else {
+                app.showToast('الرجاء إدخال رابط M3U', 'warning');
             }
         });
     }
@@ -149,6 +162,35 @@ function readFileContent(file) {
     });
 }
 
+// ==================== Download M3U File ====================
+async function downloadM3UFile(url) {
+    if (!app.isValidUrl(url)) {
+        app.showToast('الرابط غير صحيح', 'error');
+        return;
+    }
+    
+    app.showToast('جاري تحميل الملف...', 'info');
+    
+    try {
+        // Create a temporary anchor element to download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `playlist_${Date.now()}.m3u`;
+        a.target = '_blank'; // Open in new tab if download fails
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        app.showToast('تم بدء التحميل! بعد التحميل، قم برفع الملف للمحلل', 'success', 4000);
+    } catch (error) {
+        console.error('خطأ في التحميل:', error);
+        
+        // Fallback: try to open in new tab
+        app.showToast('فتح الرابط في علامة تبويب جديدة... احفظ الملف يدوياً', 'info', 4000);
+        window.open(url, '_blank');
+    }
+}
+
 // ==================== Parse M3U Function ====================
 async function parseM3U(url) {
     if (!app.isValidUrl(url)) {
@@ -165,13 +207,20 @@ async function parseM3U(url) {
         let m3uContent = '';
         let usedProxy = false;
         
-        // Multiple proxy options
+        // Multiple proxy options - ordered by reliability
         const proxyOptions = [
-            null, // Direct fetch
+            // Check if local PHP proxy exists
+            url => `proxy.php?url=${encodeURIComponent(url)}`,
+            // Public CORS proxies
             url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
             url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            url => `https://cors-anywhere.herokuapp.com/${url}`,
+            url => `https://thingproxy.freeboard.io/fetch/${url}`,
             url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-            url => `https://cors-anywhere.herokuapp.com/${url}`
+            url => `https://proxy.cors.sh/${url}`,
+            url => `https://cors.proxy.lc/${url}`,
+            // Try direct as last resort
+            null
         ];
         
         let lastError = null;
@@ -181,7 +230,15 @@ async function parseM3U(url) {
                 const fetchUrl = proxyFn ? proxyFn(url) : url;
                 
                 if (proxyFn) {
-                    console.log('🔄 محاولة عبر CORS proxy...');
+                    const proxyName = fetchUrl.includes('proxy.php') ? 'المحلي' : 
+                                     fetchUrl.includes('allorigins') ? 'AllOrigins' :
+                                     fetchUrl.includes('corsproxy') ? 'CorsProxy' :
+                                     fetchUrl.includes('cors-anywhere') ? 'CORS-Anywhere' :
+                                     fetchUrl.includes('thingproxy') ? 'ThingProxy' :
+                                     fetchUrl.includes('codetabs') ? 'CodeTabs' :
+                                     fetchUrl.includes('cors.sh') ? 'CORS.sh' :
+                                     fetchUrl.includes('cors.proxy.lc') ? 'ProxyLC' : 'proxy';
+                    console.log(`🔄 محاولة عبر ${proxyName}...`);
                     usedProxy = true;
                 }
                 
@@ -189,8 +246,11 @@ async function parseM3U(url) {
                     method: 'GET',
                     headers: proxyFn ? {} : {
                         'Accept': '*/*',
-                        'Cache-Control': 'no-cache'
-                    }
+                        'Cache-Control': 'no-cache',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    },
+                    redirect: 'follow', // Follow redirects automatically
+                    credentials: 'omit' // Don't send credentials
                 });
                 
                 if (!response.ok) {
@@ -209,7 +269,15 @@ async function parseM3U(url) {
                 m3uContent = fixEncoding(m3uContent);
                 
                 if (usedProxy) {
-                    app.showToast('تم التحميل عبر CORS proxy', 'info', 2000);
+                    const proxyName = fetchUrl.includes('proxy.php') ? 'الخادم المحلي' : 
+                                     fetchUrl.includes('allorigins') ? 'AllOrigins' :
+                                     fetchUrl.includes('corsproxy') ? 'CorsProxy' :
+                                     fetchUrl.includes('cors-anywhere') ? 'CORS-Anywhere' :
+                                     fetchUrl.includes('thingproxy') ? 'ThingProxy' :
+                                     fetchUrl.includes('codetabs') ? 'CodeTabs' :
+                                     fetchUrl.includes('cors.sh') ? 'CORS.sh' :
+                                     fetchUrl.includes('cors.proxy.lc') ? 'ProxyLC' : 'CORS proxy';
+                    app.showToast(`✅ تم التحميل عبر ${proxyName}`, 'success', 2000);
                 }
                 
                 // Success! Break the loop
@@ -217,7 +285,8 @@ async function parseM3U(url) {
                 
             } catch (error) {
                 lastError = error;
-                console.log(`❌ فشل: ${error.message}`);
+                const proxyName = proxyFn ? 'proxy' : 'direct';
+                console.log(`❌ فشل (${proxyName}): ${error.message}`);
                 // Continue to next proxy
                 continue;
             }
@@ -225,7 +294,17 @@ async function parseM3U(url) {
         
         // If all proxies failed
         if (!m3uContent) {
-            throw lastError || new Error('فشل في تحميل الملف من جميع المصادر');
+            const errorMsg = lastError?.message || 'غير معروف';
+            console.error('❌ فشلت جميع محاولات الاتصال:', errorMsg);
+            
+            // Show helpful error message
+            app.showToast(
+                `❌ لم يتمكن من تحميل الرابط<br>جرّب تنزيل الملف ورفعه يدوياً`, 
+                'error', 
+                5000
+            );
+            
+            throw new Error(`فشل في تحميل الملف: ${errorMsg}`);
         }
         
         // Validate content

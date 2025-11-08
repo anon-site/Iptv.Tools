@@ -198,8 +198,13 @@ async function playStream(url, player = mainPlayer, type = null) {
                 });
                 player.play();
                 break;
+            case 'ts':
+            case 'iptv':
+                // For Transport Stream and IPTV links
+                await playIPTV(url, player);
+                break;
             default:
-                // For IPTV links, try multiple methods
+                // For unknown types, try IPTV method
                 await playIPTV(url, player);
         }
         

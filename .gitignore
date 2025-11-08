@@ -37,3 +37,6 @@ build/
 .env
 .env.local
 .env.*.local
+
+# Test files (optional - remove if you want to commit them)
+# test-*.html

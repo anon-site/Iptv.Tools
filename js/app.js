@@ -150,6 +150,11 @@ function detectStreamType(url) {
         return 'rtmp';
     } else if (extension === 'mp4' || extension === 'webm' || extension === 'ogg') {
         return 'video';
+    } else if (extension === 'ts') {
+        return 'ts'; // Transport Stream (IPTV)
+    } else if (url.match(/:\d+\/live\//) || url.match(/:\d+\/.*\/.*\/\d+/)) {
+        // IPTV pattern: port/live/user/pass/id
+        return 'iptv';
     } else {
         return 'unknown';
     }
