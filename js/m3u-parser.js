@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupM3UParser() {
     const parseBtn = document.getElementById('parse-m3u-btn');
     const m3uUrlInput = document.getElementById('m3u-url');
+    const fileInput = document.getElementById('m3u-file-input');
+    const fileNameDisplay = document.getElementById('file-name-display');
     
     if (parseBtn) {
         parseBtn.addEventListener('click', () => {
@@ -17,7 +19,7 @@ function setupM3UParser() {
             if (url) {
                 parseM3U(url);
             } else {
-                app.showToast('الرجاء إدخال رابط M3U', 'warning');
+                app.showToast('الرجاء إدخال رابط M3U أو رفع ملف', 'warning');
             }
         });
     }
@@ -33,6 +35,16 @@ function setupM3UParser() {
         });
     }
     
+    // Setup file upload
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileUpload(file, fileNameDisplay);
+            }
+        });
+    }
+    
     // Setup search
     const searchInput = document.getElementById('channel-search');
     if (searchInput) {
@@ -43,6 +55,98 @@ function setupM3UParser() {
     
     // Setup filter buttons
     setupFilterButtons();
+}
+
+// ==================== Handle File Upload ====================
+async function handleFileUpload(file, displayElement) {
+    // Validate file type
+    const validExtensions = ['.m3u', '.m3u8', '.txt'];
+    const fileName = file.name.toLowerCase();
+    const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!isValid) {
+        app.showToast('نوع الملف غير مدعوم. استخدم ملف M3U أو M3U8', 'error');
+        return;
+    }
+    
+    // Display file name
+    if (displayElement) {
+        displayElement.textContent = `✅ ${file.name}`;
+        displayElement.style.color = '#4CAF50';
+    }
+    
+    const loading = document.getElementById('loading');
+    loading.style.display = 'block';
+    
+    try {
+        app.showToast('جاري قراءة الملف...', 'info');
+        
+        // Read file content
+        const m3uContent = await readFileContent(file);
+        
+        // Validate content
+        if (!isValidM3UContent(m3uContent)) {
+            throw new Error('الملف ليس M3U صحيح أو فارغ');
+        }
+        
+        // Parse M3U content
+        channels = parseM3UContent(m3uContent);
+        filteredChannels = [...channels];
+        
+        if (channels.length > 0) {
+            app.showToast(`تم تحليل ${channels.length} قناة من الملف`, 'success');
+            
+            // Show controls
+            document.getElementById('m3u-controls').style.display = 'block';
+            
+            // Display channels
+            displayChannels(filteredChannels);
+            
+            // Update stats
+            updateStats();
+            
+            // Auto-check channels
+            setTimeout(() => {
+                const checkMsg = channels.length > 50 ? 
+                    `🔄 فحص ${channels.length} قناة تلقائيًا... (قد يستغرق بضع دقائق)` :
+                    `🔄 فحص ${channels.length} قناة تلقائيًا...`;
+                app.showToast(checkMsg, 'info', 3000);
+                checkAllChannels(true);
+            }, 1000);
+        } else {
+            app.showToast('لم يتم العثور على قنوات', 'warning');
+        }
+    } catch (error) {
+        console.error('خطأ في قراءة الملف:', error);
+        app.showToast('فشل في قراءة الملف', 'error');
+        if (displayElement) {
+            displayElement.textContent = `❌ خطأ في قراءة ${file.name}`;
+            displayElement.style.color = '#f44336';
+        }
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+// ==================== Read File Content ====================
+function readFileContent(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            let content = e.target.result;
+            // Fix encoding if needed
+            content = fixEncoding(content);
+            resolve(content);
+        };
+        
+        reader.onerror = () => {
+            reject(new Error('فشل في قراءة الملف'));
+        };
+        
+        // Read as text with UTF-8 encoding
+        reader.readAsText(file, 'UTF-8');
+    });
 }
 
 // ==================== Parse M3U Function ====================
@@ -460,6 +564,9 @@ function createChannelCard(channel, index) {
             <button class="channel-btn play" onclick="playChannel(${index})">
                 <i class="fas fa-play"></i> تشغيل
             </button>
+            <button class="channel-btn vlc" onclick="openInVLC(${index})" title="فتح في VLC">
+                <i class="fas fa-external-link-alt"></i> VLC
+            </button>
             <button class="channel-btn copy" onclick="copyChannelUrl(${index})">
                 <i class="fas fa-copy"></i> نسخ
             </button>
@@ -472,6 +579,22 @@ function createChannelCard(channel, index) {
 // ==================== Channel Actions ====================
 function playChannel(index) {
     const channel = filteredChannels[index];
+    
+    // Show warning for IPTV links
+    if (isIPTVLink(channel.url)) {
+        const userChoice = confirm(
+            `⚠️ هذا رابط IPTV قد لا يعمل في المتصفح.\n\n` +
+            `👉 الحل الموصى به:\n` +
+            `1. اضغط زر "VLC" لتحميل ملف القناة\n` +
+            `2. افتح الملف بـ VLC Media Player\n\n` +
+            `هل تريد المحاولة في المتصفح على أي حال؟`
+        );
+        
+        if (!userChoice) {
+            return;
+        }
+    }
+    
     player.openVideoModal({
         name: channel.name,
         url: channel.url,
@@ -479,8 +602,56 @@ function playChannel(index) {
     });
 }
 
+// Check if URL is IPTV link
+function isIPTVLink(url) {
+    // Check for common IPTV patterns
+    return url.includes(':8080/') || 
+           url.includes('/live/') || 
+           url.match(/\/[a-z0-9]+\/[a-z0-9]+\/\d+$/i);
+}
+
 function copyChannelUrl(index) {
     const channel = filteredChannels[index];
+    app.copyToClipboard(channel.url);
+}
+
+function openInVLC(index) {
+    const channel = filteredChannels[index];
+    
+    // Create M3U content for this single channel
+    let m3uContent = '#EXTM3U\n\n';
+    m3uContent += `#EXTINF:-1`;
+    
+    if (channel.tvgId) {
+        m3uContent += ` tvg-id="${channel.tvgId}"`;
+    }
+    
+    if (channel.logo) {
+        m3uContent += ` tvg-logo="${channel.logo}"`;
+    }
+    
+    if (channel.group) {
+        m3uContent += ` group-title="${channel.group}"`;
+    }
+    
+    m3uContent += `,${channel.name}\n`;
+    m3uContent += `${channel.url}\n`;
+    
+    // Create and download M3U file
+    const blob = new Blob([m3uContent], { type: 'audio/x-mpegurl' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${channel.name.replace(/[^a-z0-9]/gi, '_')}.m3u`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    // Show instructions
+    app.showToast(`🎬 تم تحميل ${channel.name}.m3u - افتحه بـ VLC`, 'success', 4000);
+    
+    // Also copy URL for manual use
     app.copyToClipboard(channel.url);
 }
 
@@ -531,10 +702,10 @@ function setupFilterButtons() {
         });
     }
     
-    // Export button
+    // Export button with options
     const exportBtn = document.getElementById('export-btn');
     if (exportBtn) {
-        exportBtn.addEventListener('click', exportM3U);
+        exportBtn.addEventListener('click', showExportOptions);
     }
 }
 
@@ -658,8 +829,39 @@ function updateStats() {
     document.getElementById('offline-channels').textContent = offline;
 }
 
+// ==================== Show Export Options ====================
+function showExportOptions() {
+    if (channels.length === 0) {
+        app.showToast('لا توجد قنوات للتصدير', 'warning');
+        return;
+    }
+    
+    // Create custom confirmation dialog
+    const onlineCount = channels.filter(c => c.status === 'online').length;
+    const totalCount = channels.length;
+    
+    const message = `
+        اختر نوع التصدير:
+        
+        1. تصدير القنوات العاملة فقط (${onlineCount} قناة)
+        2. تصدير جميع القنوات (${totalCount} قناة)
+        3. تصدير بتنسيق JSON
+    `;
+    
+    // Use browser's prompt for selection
+    const choice = prompt(message.trim(), '1');
+    
+    if (choice === '1') {
+        exportM3U(true); // Export only online
+    } else if (choice === '2') {
+        exportM3U(false); // Export all
+    } else if (choice === '3') {
+        exportJSON(); // Export as JSON
+    }
+}
+
 // ==================== Export M3U ====================
-function exportM3U() {
+function exportM3U(onlineOnly = null) {
     if (channels.length === 0) {
         app.showToast('لا توجد قنوات للتصدير', 'warning');
         return;
@@ -667,10 +869,19 @@ function exportM3U() {
     
     let m3uContent = '#EXTM3U\n\n';
     
-    // Export only working channels if hideOffline is true
-    const channelsToExport = hideOffline ? 
-        channels.filter(c => c.status === 'online') : 
-        channels;
+    // Determine which channels to export
+    let channelsToExport;
+    if (onlineOnly === null) {
+        // Use hideOffline setting
+        channelsToExport = hideOffline ? 
+            channels.filter(c => c.status === 'online') : 
+            channels;
+    } else {
+        // Use explicit parameter
+        channelsToExport = onlineOnly ? 
+            channels.filter(c => c.status === 'online') : 
+            channels;
+    }
     
     channelsToExport.forEach(channel => {
         m3uContent += `#EXTINF:-1`;
@@ -687,22 +898,70 @@ function exportM3U() {
             m3uContent += ` group-title="${channel.group}"`;
         }
         
+        if (channel.tvgName) {
+            m3uContent += ` tvg-name="${channel.tvgName}"`;
+        }
+        
+        if (channel.language) {
+            m3uContent += ` tvg-language="${channel.language}"`;
+        }
+        
+        if (channel.country) {
+            m3uContent += ` tvg-country="${channel.country}"`;
+        }
+        
         m3uContent += `,${channel.name}\n`;
         m3uContent += `${channel.url}\n\n`;
     });
     
     // Create and download file
-    const blob = new Blob([m3uContent], { type: 'text/plain' });
+    downloadFile(m3uContent, `channels_${Date.now()}.m3u`, 'text/plain');
+    
+    app.showToast(`✅ تم تصدير ${channelsToExport.length} قناة بتنسيق M3U`, 'success');
+}
+
+// ==================== Export JSON ====================
+function exportJSON() {
+    if (channels.length === 0) {
+        app.showToast('لا توجد قنوات للتصدير', 'warning');
+        return;
+    }
+    
+    const jsonData = {
+        exportDate: new Date().toISOString(),
+        totalChannels: channels.length,
+        onlineChannels: channels.filter(c => c.status === 'online').length,
+        offlineChannels: channels.filter(c => c.status === 'offline').length,
+        channels: channels.map(channel => ({
+            name: channel.name,
+            url: channel.url,
+            logo: channel.logo,
+            group: channel.group,
+            tvgId: channel.tvgId,
+            tvgName: channel.tvgName,
+            language: channel.language,
+            country: channel.country,
+            status: channel.status
+        }))
+    };
+    
+    const jsonContent = JSON.stringify(jsonData, null, 2);
+    downloadFile(jsonContent, `channels_${Date.now()}.json`, 'application/json');
+    
+    app.showToast(`✅ تم تصدير ${channels.length} قناة بتنسيق JSON`, 'success');
+}
+
+// ==================== Download File Helper ====================
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `channels_${Date.now()}.m3u`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
-    
-    app.showToast(`تم تصدير ${channelsToExport.length} قناة`, 'success');
 }
 
 // ==================== Load Sample M3U for Testing ====================
@@ -723,6 +982,7 @@ window.m3uParser = {
 // Make functions globally accessible for onclick handlers
 window.playChannel = playChannel;
 window.copyChannelUrl = copyChannelUrl;
+window.openInVLC = openInVLC;
 
 // ==================== Encoding Fixer ====================
 function fixEncoding(text) {

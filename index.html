@@ -130,10 +130,19 @@
                         <input type="text" 
                                id="m3u-url" 
                                class="input-field" 
-                               placeholder="أدخل رابط قائمة M3U (مثل: https://iptv-org.github.io/iptv/categories/movies.m3u)">
+                               placeholder="أدخل رابط قائمة M3U أو قم برفع ملف">
                         <button class="btn btn-success" id="parse-m3u-btn">
                             <i class="fas fa-download"></i> تحليل
                         </button>
+                    </div>
+                    
+                    <div class="file-upload-section">
+                        <label for="m3u-file-input" class="file-upload-label">
+                            <i class="fas fa-upload"></i>
+                            <span>رفع ملف M3U من جهازك</span>
+                            <input type="file" id="m3u-file-input" accept=".m3u,.m3u8,.txt" style="display: none;">
+                        </label>
+                        <span class="file-name" id="file-name-display"></span>
                     </div>
 
                     <!-- M3U Controls -->
@@ -204,6 +213,23 @@
             </div>
             
             <div class="modal-body">
+                <!-- IPTV Warning -->
+                <div class="iptv-warning" style="display: none;" id="iptv-warning">
+                    <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                        <h4 style="color: white; margin: 0 0 10px 0; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            لا تعمل القناة؟ استخدم VLC!
+                        </h4>
+                        <p style="color: white; margin: 0 0 10px 0; font-size: 0.95rem;">
+                            ⚡ روابط IPTV لا تعمل في المتصفح بسبب قيود الأمان
+                        </p>
+                        <button onclick="downloadSingleChannel()" style="background: white; color: #ff6b35; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-download"></i>
+                            حمّل ملف M3U وافتحه في VLC
+                        </button>
+                    </div>
+                </div>
+                
                 <!-- Channel Info -->
                 <div class="channel-info">
                     <div class="info-item">

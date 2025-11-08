@@ -174,6 +174,16 @@ async function playStream(url, player = mainPlayer, type = null) {
         player.pause();
         player.reset();
         
+        // Clean up previous instances
+        if (player.hls) {
+            player.hls.destroy();
+            player.hls = null;
+        }
+        if (player.dash) {
+            player.dash.reset();
+            player.dash = null;
+        }
+        
         switch (streamType) {
             case 'hls':
                 await playHLS(url, player);
@@ -189,23 +199,96 @@ async function playStream(url, player = mainPlayer, type = null) {
                 player.play();
                 break;
             default:
-                // Try as HLS first, then fallback to direct
-                try {
-                    await playHLS(url, player);
-                } catch (e) {
-                    player.src({
-                        src: url,
-                        type: 'video/mp4'
-                    });
-                    player.play();
-                }
+                // For IPTV links, try multiple methods
+                await playIPTV(url, player);
         }
         
         console.log('✅ تم تحميل البث بنجاح');
     } catch (error) {
         console.error('❌ خطأ في تشغيل البث:', error);
-        app.showToast('فشل في تشغيل البث', 'error');
+        app.showToast('فشل في تشغيل البث. جرب فتح الرابط في VLC', 'error', 5000);
     }
+}
+
+// ==================== IPTV Playback (Multi-method) ====================
+async function playIPTV(url, player) {
+    console.log('📡 محاولة تشغيل IPTV...');
+    
+    // Method 1: Try as direct TS stream
+    try {
+        player.src({
+            src: url,
+            type: 'application/x-mpegURL'
+        });
+        
+        await player.play();
+        
+        // If play succeeded, we're good
+        app.showToast('✅ تم تشغيل القناة', 'success', 2000);
+        return;
+    } catch (e) {
+        console.log('❌ فشلت الطريقة 1:', e.message);
+    }
+    
+    // Method 2: Try HLS with custom config
+    if (Hls.isSupported()) {
+        try {
+            const hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: false,
+                backBufferLength: 90,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 60,
+                xhrSetup: function(xhr, url) {
+                    // Add any custom headers if needed
+                    xhr.withCredentials = false;
+                }
+            });
+            
+            hls.loadSource(url);
+            hls.attachMedia(player.el().querySelector('video'));
+            
+            await new Promise((resolve, reject) => {
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    player.play();
+                    app.showToast('✅ تم تشغيل القناة', 'success', 2000);
+                    resolve();
+                });
+                
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        console.error('❌ HLS Error:', data);
+                        reject(new Error(data.type));
+                    }
+                });
+                
+                // Timeout after 10 seconds
+                setTimeout(() => reject(new Error('Timeout')), 10000);
+            });
+            
+            player.hls = hls;
+            return;
+        } catch (e) {
+            console.log('❌ فشلت الطريقة 2:', e.message);
+        }
+    }
+    
+    // Method 3: Try as direct video/mp2t
+    try {
+        player.src({
+            src: url,
+            type: 'video/mp2t'
+        });
+        
+        await player.play();
+        app.showToast('✅ تم تشغيل القناة', 'success', 2000);
+        return;
+    } catch (e) {
+        console.log('❌ فشلت الطريقة 3:', e.message);
+    }
+    
+    // If all methods failed, throw error
+    throw new Error('فشل تشغيل IPTV. الرابط قد يحتاج مصادقة أو غير متاح');
 }
 
 // ==================== HLS Playback ====================
@@ -320,16 +403,29 @@ function handlePlayerError(error) {
 }
 
 // ==================== Modal Player Functions ====================
+let currentChannelData = null;
+
 function openVideoModal(channelData) {
     const modal = document.getElementById('video-modal');
     const channelName = document.getElementById('channel-name');
     const channelCategory = document.getElementById('channel-category');
     const channelUrl = document.getElementById('channel-url');
+    const iptvWarning = document.getElementById('iptv-warning');
+    
+    // Store current channel data
+    currentChannelData = channelData;
     
     // Set channel info
     channelName.textContent = channelData.name || 'قناة غير معروفة';
     channelCategory.textContent = channelData.category || '-';
     channelUrl.textContent = channelData.url;
+    
+    // Show IPTV warning if it's an IPTV link
+    if (isIPTVUrl(channelData.url)) {
+        iptvWarning.style.display = 'block';
+    } else {
+        iptvWarning.style.display = 'none';
+    }
     
     // Setup copy button
     const copyBtn = document.getElementById('copy-url-btn');
@@ -347,6 +443,35 @@ function openVideoModal(channelData) {
     
     // Prevent body scroll
     document.body.style.overflow = 'hidden';
+}
+
+// Check if URL is IPTV
+function isIPTVUrl(url) {
+    return url.includes(':8080/') || 
+           url.includes('/live/') || 
+           url.match(/\/[a-z0-9]+\/[a-z0-9]+\/\d+$/i);
+}
+
+// Download single channel as M3U
+function downloadSingleChannel() {
+    if (!currentChannelData) return;
+    
+    const channel = currentChannelData;
+    let m3uContent = '#EXTM3U\n\n';
+    m3uContent += `#EXTINF:-1,${channel.name}\n`;
+    m3uContent += `${channel.url}\n`;
+    
+    const blob = new Blob([m3uContent], { type: 'audio/x-mpegurl' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${channel.name.replace(/[^a-z0-9]/gi, '_')}.m3u`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    app.showToast(`✅ تم تحميل ${channel.name}.m3u`, 'success', 3000);
 }
 
 function closeVideoModal() {
@@ -409,3 +534,6 @@ window.player = {
     mainPlayer: () => mainPlayer,
     modalPlayer: () => modalPlayer
 };
+
+// Make downloadSingleChannel globally accessible
+window.downloadSingleChannel = downloadSingleChannel;

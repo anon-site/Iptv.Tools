@@ -418,6 +418,56 @@ body::before {
     transform: scale(1.05);
 }
 
+/* ==================== File Upload Section ==================== */
+.file-upload-section {
+    margin-top: 20px;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.4);
+    border: 2px dashed rgba(255, 255, 255, 0.2);
+    border-radius: var(--border-radius);
+    text-align: center;
+    transition: var(--transition);
+}
+
+.file-upload-section:hover {
+    border-color: var(--primary-color);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.file-upload-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 30px;
+    background: var(--dark-card);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.file-upload-label:hover {
+    background: var(--dark-hover);
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.file-upload-label i {
+    font-size: 1.2rem;
+}
+
+.file-name {
+    display: block;
+    margin-top: 15px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-style: italic;
+}
+
 /* ==================== M3U Controls ==================== */
 .m3u-controls {
     margin: 25px 0;
@@ -678,6 +728,18 @@ body::before {
 .channel-btn.copy:hover {
     background: var(--secondary-color);
     color: white;
+}
+
+.channel-btn.vlc {
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+    color: white;
+    font-weight: 600;
+}
+
+.channel-btn.vlc:hover {
+    background: linear-gradient(135deg, #ff5722 0%, #ff9800 100%);
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
 }
 
 /* ==================== Modal ==================== */
