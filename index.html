@@ -91,6 +91,125 @@
 
             <!-- Link Extractor Tab -->
             <div class="tab-content" id="extractor-tab">
+                <!-- IPTV URL Parser -->
+                <div class="section-card">
+                    <h2 class="section-title">
+                        <i class="fas fa-key"></i> محلل روابط IPTV
+                    </h2>
+                    
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px 15px; border-radius: 8px; margin-bottom: 15px; color: white; font-size: 0.9rem;">
+                        <i class="fas fa-info-circle"></i> <strong>استخرج Username و Password ومعلومات الخادم من رابط IPTV</strong>
+                    </div>
+                    
+                    <div class="input-group">
+                        <input type="text" 
+                               id="iptv-url" 
+                               class="input-field" 
+                               placeholder="أدخل رابط IPTV (مثال: http://server.tv:8080/live/user/pass/123.ts)">
+                        <button class="btn btn-primary" id="parse-iptv-btn">
+                            <i class="fas fa-search"></i> تحليل
+                        </button>
+                    </div>
+                    
+                    <!-- IPTV Info Display -->
+                    <div id="iptv-info" style="display: none; margin-top: 20px;">
+                        <div style="background: rgba(15, 23, 42, 0.6); padding: 20px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                            <h3 style="color: var(--primary-color); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-server"></i> معلومات الخادم
+                            </h3>
+                            
+                            <div class="info-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                                <div class="info-item" style="background: rgba(30, 41, 59, 0.6); padding: 12px; border-radius: 8px;">
+                                    <strong style="color: #94a3b8; font-size: 0.85rem; display: block; margin-bottom: 5px;">🌐 Server</strong>
+                                    <span id="iptv-server" style="color: #f1f5f9; word-break: break-all;">-</span>
+                                    <button onclick="copyText('iptv-server')" style="margin-top: 5px; padding: 4px 8px; background: var(--dark-hover); border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.8rem;">
+                                        <i class="fas fa-copy"></i> نسخ
+                                    </button>
+                                </div>
+                                
+                                <div class="info-item" style="background: rgba(30, 41, 59, 0.6); padding: 12px; border-radius: 8px;">
+                                    <strong style="color: #94a3b8; font-size: 0.85rem; display: block; margin-bottom: 5px;">🔔 Port</strong>
+                                    <span id="iptv-port" style="color: #f1f5f9;">-</span>
+                                </div>
+                                
+                                <div class="info-item" style="background: rgba(30, 41, 59, 0.6); padding: 12px; border-radius: 8px;">
+                                    <strong style="color: #94a3b8; font-size: 0.85rem; display: block; margin-bottom: 5px;">👤 Username</strong>
+                                    <span id="iptv-username" style="color: #10b981; font-weight: bold;">-</span>
+                                    <button onclick="copyText('iptv-username')" style="margin-top: 5px; padding: 4px 8px; background: var(--dark-hover); border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.8rem;">
+                                        <i class="fas fa-copy"></i> نسخ
+                                    </button>
+                                </div>
+                                
+                                <div class="info-item" style="background: rgba(30, 41, 59, 0.6); padding: 12px; border-radius: 8px;">
+                                    <strong style="color: #94a3b8; font-size: 0.85rem; display: block; margin-bottom: 5px;">🔑 Password</strong>
+                                    <span id="iptv-password" style="color: #f59e0b; font-weight: bold;">-</span>
+                                    <button onclick="copyText('iptv-password')" style="margin-top: 5px; padding: 4px 8px; background: var(--dark-hover); border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.8rem;">
+                                        <i class="fas fa-copy"></i> نسخ
+                                    </button>
+                                </div>
+                                
+                                <div class="info-item" style="background: rgba(30, 41, 59, 0.6); padding: 12px; border-radius: 8px;">
+                                    <strong style="color: #94a3b8; font-size: 0.85rem; display: block; margin-bottom: 5px;">🎬 Stream Type</strong>
+                                    <span id="iptv-stream-type" style="color: #8b5cf6;">-</span>
+                                </div>
+                                
+                                <div class="info-item" style="background: rgba(30, 41, 59, 0.6); padding: 12px; border-radius: 8px;">
+                                    <strong style="color: #94a3b8; font-size: 0.85rem; display: block; margin-bottom: 5px;">🆔 Stream ID</strong>
+                                    <span id="iptv-stream-id" style="color: #3b82f6;">-</span>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 20px; padding: 15px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px;">
+                                <h4 style="color: #10b981; margin: 0 0 10px 0; font-size: 0.95rem;">🔗 روابط API مفيدة</h4>
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <div>
+                                        <strong style="color: #cbd5e1; font-size: 0.85rem;">Player API:</strong>
+                                        <code id="iptv-player-api" style="background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; display: block; margin-top: 5px; color: #10b981; font-size: 0.85rem; word-break: break-all;">-</code>
+                                        <button onclick="copyText('iptv-player-api')" style="margin-top: 5px; padding: 6px 12px; background: #10b981; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: bold;">
+                                            <i class="fas fa-copy"></i> نسخ Player API
+                                        </button>
+                                    </div>
+                                    
+                                    <div>
+                                        <strong style="color: #cbd5e1; font-size: 0.85rem;">M3U Playlist:</strong>
+                                        <code id="iptv-m3u-url" style="background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; display: block; margin-top: 5px; color: #f59e0b; font-size: 0.85rem; word-break: break-all;">-</code>
+                                        <button onclick="copyText('iptv-m3u-url')" style="margin-top: 5px; padding: 6px 12px; background: #f59e0b; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: bold;">
+                                            <i class="fas fa-copy"></i> نسخ M3U URL
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="iptv-m3u8-container" style="display: none;">
+                                        <strong style="color: #cbd5e1; font-size: 0.85rem;">📺 M3U8 Stream URL (للتشغيل المباشر):</strong>
+                                        <code id="iptv-m3u8-stream" style="background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; display: block; margin-top: 5px; color: #06b6d4; font-size: 0.85rem; word-break: break-all;">-</code>
+                                        <div style="display: flex; gap: 8px; margin-top: 5px;">
+                                            <button onclick="copyText('iptv-m3u8-stream')" style="flex: 1; padding: 6px 12px; background: #06b6d4; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: bold;">
+                                                <i class="fas fa-copy"></i> نسخ M3U8
+                                            </button>
+                                            <button onclick="playM3U8Stream()" style="flex: 1; padding: 6px 12px; background: #8b5cf6; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: bold;">
+                                                <i class="fas fa-play"></i> تشغيل الآن
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="iptv-ts-container" style="display: none;">
+                                        <strong style="color: #cbd5e1; font-size: 0.85rem;">📡 TS Stream URL (صيغة بديلة):</strong>
+                                        <code id="iptv-ts-stream" style="background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; display: block; margin-top: 5px; color: #ec4899; font-size: 0.85rem; word-break: break-all;">-</code>
+                                        <div style="display: flex; gap: 8px; margin-top: 5px;">
+                                            <button onclick="copyText('iptv-ts-stream')" style="flex: 1; padding: 6px 12px; background: #ec4899; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: bold;">
+                                                <i class="fas fa-copy"></i> نسخ TS
+                                            </button>
+                                            <button onclick="playTSStream()" style="flex: 1; padding: 6px 12px; background: #8b5cf6; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: bold;">
+                                                <i class="fas fa-play"></i> تشغيل الآن
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Original Link Extractor -->
                 <div class="section-card">
                     <h2 class="section-title">
                         <i class="fas fa-link"></i> استخراج الروابط من المواقع

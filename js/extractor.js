@@ -3,6 +3,7 @@ let extractedLinks = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     setupExtractor();
+    setupIPTVParser();
 });
 
 function setupExtractor() {
@@ -488,12 +489,246 @@ function openExtractedInModal(index) {
     });
 }
 
+// ==================== IPTV URL Parser ====================
+
+function setupIPTVParser() {
+    const parseBtn = document.getElementById('parse-iptv-btn');
+    const iptvUrlInput = document.getElementById('iptv-url');
+    
+    if (parseBtn) {
+        parseBtn.addEventListener('click', () => {
+            const url = iptvUrlInput.value.trim();
+            if (url) {
+                parseIPTVUrl(url);
+            } else {
+                app.showToast('الرجاء إدخال رابط IPTV', 'warning');
+            }
+        });
+    }
+    
+    if (iptvUrlInput) {
+        iptvUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const url = iptvUrlInput.value.trim();
+                if (url) {
+                    parseIPTVUrl(url);
+                }
+            }
+        });
+    }
+}
+
+function parseIPTVUrl(url) {
+    try {
+        console.log('🔍 تحليل رابط IPTV:', url);
+        
+        // Parse URL
+        const urlObj = new URL(url);
+        
+        // Extract components
+        const protocol = urlObj.protocol.replace(':', '');
+        const hostname = urlObj.hostname;
+        const port = urlObj.port || (protocol === 'https' ? '443' : '80');
+        const pathname = urlObj.pathname;
+        
+        // Common IPTV URL patterns:
+        // http://server:port/live/username/password/streamid.ext
+        // http://server:port/username/password/streamid
+        // http://server:port/live/username/password/streamid
+        
+        let username = '';
+        let password = '';
+        let streamType = '';
+        let streamId = '';
+        
+        // Try different patterns
+        const pathParts = pathname.split('/').filter(p => p);
+        
+        // Pattern 1: /live/user/pass/id.ext or /movie/user/pass/id.ext
+        if (pathParts.length >= 4 && (pathParts[0] === 'live' || pathParts[0] === 'movie' || pathParts[0] === 'series')) {
+            streamType = pathParts[0];
+            username = pathParts[1];
+            password = pathParts[2];
+            streamId = pathParts[3];
+        }
+        // Pattern 2: /user/pass/id.ext or /@user/pass/id
+        else if (pathParts.length >= 3) {
+            username = pathParts[0];
+            password = pathParts[1];
+            streamId = pathParts[2] || pathParts.slice(2).join('/');
+            
+            // Remove @ from username if present
+            if (username.startsWith('@')) {
+                username = username.substring(1);
+            }
+            
+            // Detect stream type from URL
+            if (url.includes('/live/')) streamType = 'live';
+            else if (url.includes('/movie/')) streamType = 'movie';
+            else if (url.includes('/series/')) streamType = 'series';
+            else streamType = 'channel';
+        }
+        
+        // Clean stream ID (remove extension)
+        streamId = streamId.replace(/\.(ts|m3u8|mp4|mkv|avi)$/i, '');
+        
+        // Build server URL
+        const serverUrl = `${protocol}://${hostname}:${port}`;
+        
+        // Build API URLs
+        const playerApiUrl = `${serverUrl}/player_api.php?username=${username}&password=${password}`;
+        const m3uUrl = `${serverUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
+        
+        // Build M3U8 stream URL (support both .ts and .m3u8)
+        let m3u8StreamUrl = '';
+        let tsStreamUrl = '';
+        
+        if (streamId) {
+            // Check if stream type is specified
+            if (streamType === 'live' || streamType === 'channel') {
+                m3u8StreamUrl = `${serverUrl}/live/${username}/${password}/${streamId}.m3u8`;
+                tsStreamUrl = `${serverUrl}/live/${username}/${password}/${streamId}.ts`;
+            } else if (streamType === 'movie') {
+                m3u8StreamUrl = `${serverUrl}/movie/${username}/${password}/${streamId}.m3u8`;
+                tsStreamUrl = `${serverUrl}/movie/${username}/${password}/${streamId}.ts`;
+            } else if (streamType === 'series') {
+                m3u8StreamUrl = `${serverUrl}/series/${username}/${password}/${streamId}.m3u8`;
+                tsStreamUrl = `${serverUrl}/series/${username}/${password}/${streamId}.ts`;
+            } else {
+                // Try live as default
+                m3u8StreamUrl = `${serverUrl}/live/${username}/${password}/${streamId}.m3u8`;
+                tsStreamUrl = `${serverUrl}/live/${username}/${password}/${streamId}.ts`;
+            }
+        }
+        
+        // Display results
+        displayIPTVInfo({
+            server: `${hostname}:${port}`,
+            protocol: protocol,
+            port: port,
+            username: username,
+            password: password,
+            streamType: streamType || 'غير محدد',
+            streamId: streamId,
+            playerApi: playerApiUrl,
+            m3uUrl: m3uUrl,
+            m3u8StreamUrl: m3u8StreamUrl,
+            tsStreamUrl: tsStreamUrl,
+            originalUrl: url
+        });
+        
+        app.showToast('✅ تم تحليل الرابط بنجاح', 'success');
+        
+    } catch (error) {
+        console.error('خطأ في تحليل الرابط:', error);
+        app.showToast('فشل في تحليل الرابط. تأكد من صحة الرابط', 'error');
+    }
+}
+
+function displayIPTVInfo(info) {
+    // Show info section
+    document.getElementById('iptv-info').style.display = 'block';
+    
+    // Fill in the details
+    document.getElementById('iptv-server').textContent = info.server;
+    document.getElementById('iptv-port').textContent = info.port;
+    document.getElementById('iptv-username').textContent = info.username || 'غير متوفر';
+    document.getElementById('iptv-password').textContent = info.password || 'غير متوفر';
+    document.getElementById('iptv-stream-type').textContent = info.streamType;
+    document.getElementById('iptv-stream-id').textContent = info.streamId || 'غير متوفر';
+    document.getElementById('iptv-player-api').textContent = info.playerApi;
+    document.getElementById('iptv-m3u-url').textContent = info.m3uUrl;
+    
+    // Show/Hide M3U8 Stream URL
+    const m3u8Container = document.getElementById('iptv-m3u8-container');
+    if (info.m3u8StreamUrl) {
+        m3u8Container.style.display = 'block';
+        document.getElementById('iptv-m3u8-stream').textContent = info.m3u8StreamUrl;
+        // Store for playback
+        window.currentM3U8Url = info.m3u8StreamUrl;
+    } else {
+        m3u8Container.style.display = 'none';
+    }
+    
+    // Show/Hide TS Stream URL
+    const tsContainer = document.getElementById('iptv-ts-container');
+    if (info.tsStreamUrl) {
+        tsContainer.style.display = 'block';
+        document.getElementById('iptv-ts-stream').textContent = info.tsStreamUrl;
+        // Store for playback
+        window.currentTSUrl = info.tsStreamUrl;
+    } else {
+        tsContainer.style.display = 'none';
+    }
+    
+    // Smooth scroll to results
+    document.getElementById('iptv-info').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Copy text from element
+function copyText(elementId) {
+    const element = document.getElementById(elementId);
+    const text = element.textContent;
+    
+    if (text && text !== '-' && text !== 'غير متوفر') {
+        app.copyToClipboard(text);
+    } else {
+        app.showToast('لا يوجد نص لنسخه', 'warning');
+    }
+}
+
+// Play M3U8 stream
+function playM3U8Stream() {
+    if (window.currentM3U8Url) {
+        // Switch to player tab
+        const playerTab = document.querySelector('[data-tab="player"]');
+        if (playerTab) {
+            playerTab.click();
+        }
+        
+        // Play the stream
+        setTimeout(() => {
+            if (typeof player !== 'undefined' && player.playStream) {
+                player.playStream(window.currentM3U8Url, player.mainPlayer(), 'hls');
+                app.showToast('📺 يتم التشغيل الآن...', 'success');
+            }
+        }, 300);
+    } else {
+        app.showToast('لم يتم استخراج رابط M3U8', 'error');
+    }
+}
+
+// Play TS stream
+function playTSStream() {
+    if (window.currentTSUrl) {
+        // Switch to player tab
+        const playerTab = document.querySelector('[data-tab="player"]');
+        if (playerTab) {
+            playerTab.click();
+        }
+        
+        // Play the stream
+        setTimeout(() => {
+            if (typeof player !== 'undefined' && player.playStream) {
+                player.playStream(window.currentTSUrl, player.mainPlayer(), 'hls');
+                app.showToast('📡 يتم تشغيل TS...', 'success');
+            }
+        }, 300);
+    } else {
+        app.showToast('لم يتم استخراج رابط TS', 'error');
+    }
+}
+
 // Export functions
 window.extractor = {
     extractLinks,
-    extractedLinks: () => extractedLinks
+    extractedLinks: () => extractedLinks,
+    parseIPTVUrl
 };
 
 // Make functions globally accessible
 window.playExtractedLink = playExtractedLink;
 window.openExtractedInModal = openExtractedInModal;
+window.copyText = copyText;
+window.playM3U8Stream = playM3U8Stream;
+window.playTSStream = playTSStream;

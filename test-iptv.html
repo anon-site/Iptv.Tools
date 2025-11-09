@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار محلل IPTV</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 800px;
+            width: 100%;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        button {
+            padding: 12px 25px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .results {
+            display: none;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .info-item {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .info-item strong {
+            display: block;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .info-item span {
+            color: #333;
+            word-break: break-all;
+        }
+        .m3u8-url {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border: 2px solid #2196f3;
+        }
+        .m3u8-url strong {
+            color: #1976d2;
+            font-size: 16px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .m3u8-url code {
+            display: block;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            color: #1976d2;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            margin-bottom: 10px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-copy {
+            flex: 1;
+            background: #2196f3;
+        }
+        .btn-play {
+            flex: 1;
+            background: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 محلل روابط IPTV</h1>
+        
+        <div class="input-group">
+            <input type="text" id="iptv-url" placeholder="أدخل رابط IPTV (مثال: http://server.tv:8080/@user/pass/12345)">
+            <button onclick="parseIPTV()">تحليل</button>
+        </div>
+        
+        <div class="results" id="results">
+            <h2 style="color: #667eea; margin-bottom: 15px;">📊 معلومات الخادم</h2>
+            
+            <div class="info-item">
+                <strong>🌐 الخادم</strong>
+                <span id="server">-</span>
+            </div>
+            
+            <div class="info-item">
+                <strong>👤 Username</strong>
+                <span id="username">-</span>
+            </div>
+            
+            <div class="info-item">
+                <strong>🔑 Password</strong>
+                <span id="password">-</span>
+            </div>
+            
+            <div class="info-item">
+                <strong>🆔 Stream ID</strong>
+                <span id="streamId">-</span>
+            </div>
+            
+            <div class="m3u8-url">
+                <strong>📺 رابط M3U8 للتشغيل المباشر</strong>
+                <code id="m3u8-url">-</code>
+                <div class="btn-group">
+                    <button class="btn-copy" onclick="copyURL('m3u8')">📋 نسخ M3U8</button>
+                    <button class="btn-play" onclick="testURL('m3u8')">▶️ اختبار M3U8</button>
+                </div>
+            </div>
+            
+            <div class="m3u8-url" style="background: #fce7f3; border-color: #ec4899; margin-top: 15px;">
+                <strong style="color: #be185d;">📡 رابط TS (صيغة بديلة)</strong>
+                <code id="ts-url" style="color: #ec4899;">-</code>
+                <div class="btn-group">
+                    <button class="btn-copy" onclick="copyURL('ts')" style="background: #ec4899;">📋 نسخ TS</button>
+                    <button class="btn-play" onclick="testURL('ts')" style="background: #be185d;">▶️ اختبار TS</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function parseIPTV() {
+            const url = document.getElementById('iptv-url').value.trim();
+            
+            if (!url) {
+                alert('الرجاء إدخال رابط IPTV');
+                return;
+            }
+            
+            try {
+                console.log('🔍 تحليل:', url);
+                
+                const urlObj = new URL(url);
+                const protocol = urlObj.protocol.replace(':', '');
+                const hostname = urlObj.hostname;
+                const port = urlObj.port || (protocol === 'https' ? '443' : '80');
+                const pathname = urlObj.pathname;
+                
+                const pathParts = pathname.split('/').filter(p => p);
+                
+                let username = '';
+                let password = '';
+                let streamId = '';
+                let streamType = 'live';
+                
+                if (pathParts.length >= 4 && (pathParts[0] === 'live' || pathParts[0] === 'movie' || pathParts[0] === 'series')) {
+                    streamType = pathParts[0];
+                    username = pathParts[1];
+                    password = pathParts[2];
+                    streamId = pathParts[3];
+                } else if (pathParts.length >= 3) {
+                    username = pathParts[0];
+                    password = pathParts[1];
+                    streamId = pathParts[2];
+                    
+                    // Remove @ from username
+                    if (username.startsWith('@')) {
+                        username = username.substring(1);
+                    }
+                }
+                
+                // Clean stream ID
+                streamId = streamId.replace(/\.(ts|m3u8|mp4|mkv|avi)$/i, '');
+                
+                // Build URLs
+                const serverUrl = `${protocol}://${hostname}:${port}`;
+                const m3u8Url = `${serverUrl}/${streamType}/${username}/${password}/${streamId}.m3u8`;
+                const tsUrl = `${serverUrl}/${streamType}/${username}/${password}/${streamId}.ts`;
+                
+                // Display results
+                document.getElementById('server').textContent = `${hostname}:${port}`;
+                document.getElementById('username').textContent = username;
+                document.getElementById('password').textContent = password;
+                document.getElementById('streamId').textContent = streamId;
+                document.getElementById('m3u8-url').textContent = m3u8Url;
+                document.getElementById('ts-url').textContent = tsUrl;
+                
+                document.getElementById('results').style.display = 'block';
+                
+                // Store for copying
+                window.currentM3U8 = m3u8Url;
+                window.currentTS = tsUrl;
+                
+                console.log('✅ تم التحليل:', {
+                    server: `${hostname}:${port}`,
+                    username,
+                    password,
+                    streamId,
+                    m3u8Url
+                });
+                
+            } catch (error) {
+                console.error('❌ خطأ:', error);
+                alert('فشل في تحليل الرابط. تأكد من صحة الرابط');
+            }
+        }
+        
+        function copyURL(type) {
+            const url = type === 'm3u8' ? window.currentM3U8 : window.currentTS;
+            const label = type === 'm3u8' ? 'M3U8' : 'TS';
+            
+            if (url) {
+                navigator.clipboard.writeText(url).then(() => {
+                    alert(`✅ تم نسخ رابط ${label} بنجاح!`);
+                }).catch(() => {
+                    // Fallback method
+                    const textArea = document.createElement('textarea');
+                    textArea.value = url;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    alert(`✅ تم نسخ رابط ${label} بنجاح!`);
+                });
+            }
+        }
+        
+        function testURL(type) {
+            const url = type === 'm3u8' ? window.currentM3U8 : window.currentTS;
+            if (url) {
+                window.open(url, '_blank');
+            }
+        }
+        
+        // Allow Enter key
+        document.getElementById('iptv-url').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                parseIPTV();
+            }
+        });
+    </script>
+</body>
+</html>
